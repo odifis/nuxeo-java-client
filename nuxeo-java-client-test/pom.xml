@@ -10,11 +10,6 @@
   <name>Nuxeo Java Client Test</name>
   <description>Nuxeo Java Client Suite Tests</description>
 
-  <properties>
-    <!-- for use in maven-failsafe-plugin, jacoco-maven-plugin -->
-    <it.failsafe.argLine></it.failsafe.argLine>
-  </properties>
-
   <dependencyManagement>
     <dependencies>
       <dependency>

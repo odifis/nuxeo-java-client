@@ -101,14 +101,21 @@
     <java.version.release>8</java.version.release>
     <java.version.source>1.8</java.version.source>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <!-- sonar properties -->
+    <!-- Sonar & JaCoCo properties -->
+    <jacoco.version>0.8.5</jacoco.version>
+    <sonar.version>3.7.0.1746</sonar.version>
     <sonar.host.url>https://sonarcloud.io</sonar.host.url>
     <sonar.organization>nuxeo</sonar.organization>
-    <sonar.dynamicAnalysis>reuseReports</sonar.dynamicAnalysis>
-    <it.jacoco.destFile>${session.executionRootDirectory}/target/jacoco-it.exec</it.jacoco.destFile>
-    <sonar.jacoco.reportPaths>${it.jacoco.destFile}</sonar.jacoco.reportPaths>
+    <sonar.junit.reportPaths>target/surefire-reports/,target/failsafe-reports/,target/failsafe-reports/**/</sonar.junit.reportPaths>
+    <!-- deprecated since SonarJava 4.11 but still used somewhere -->
+    <sonar.junit.reportsPath>target/surefire-reports/,target/failsafe-reports/,target/failsafe-reports/**/</sonar.junit.reportsPath>
+    <sonar.showProfiling>false</sonar.showProfiling>
+    <sonar.verbose>true</sonar.verbose>
+    <sonar.java.source>${java.version.source}</sonar.java.source>
+    <sonar.java.target>${java.version.source}</sonar.java.target>
     <!-- for use in maven-surefire-plugin, maven-failsafe-plugin, jacoco-maven-plugin -->
-    <it.failsafe.argLine></it.failsafe.argLine>
+    <jacoco.ut.argLine></jacoco.ut.argLine>
+    <jacoco.it.argLine></jacoco.it.argLine>
   </properties>
 
   <dependencyManagement>
@@ -404,17 +411,21 @@
             <artifactId>jacoco-maven-plugin</artifactId>
           </plugin>
           <plugin>
+            <groupId>org.sonarsource.scanner.maven</groupId>
+            <artifactId>sonar-maven-plugin</artifactId>
+          </plugin>
+          <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-surefire-plugin</artifactId>
             <configuration>
-              <argLine>-Xmx1g -Dfile.encoding=UTF-8 -XX:-OmitStackTraceInFastThrow @{it.failsafe.argLine}</argLine>
+              <argLine>-Xmx1g -Dfile.encoding=UTF-8 -XX:-OmitStackTraceInFastThrow @{jacoco.ut.argLine}</argLine>
             </configuration>
           </plugin>
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-failsafe-plugin</artifactId>
             <configuration>
-              <argLine>@{it.failsafe.argLine}</argLine>
+              <argLine>@{jacoco.it.argLine}</argLine>
               <trimStackTrace>false</trimStackTrace>
             </configuration>
           </plugin>
@@ -513,9 +524,8 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-install-plugin</artifactId>
-          <!-- Newer versions don't build the expected MANIFEST.MF -->
+          <!-- Newer versions don't build the expected MANIFEST.MF (tested: 2.5.2) -->
           <version>2.3.1</version>
-          <!--<version>2.5.2</version>-->
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
@@ -525,10 +535,8 @@
         <plugin>
           <groupId>org.jacoco</groupId>
           <artifactId>jacoco-maven-plugin</artifactId>
-          <version>0.8.2</version>
+          <version>${jacoco.version}</version>
           <configuration>
-            <propertyName>it.failsafe.argLine</propertyName>
-            <destFile>${it.jacoco.destFile}</destFile>
             <append>true</append>
           </configuration>
           <executions>
@@ -537,25 +545,41 @@
               <goals>
                 <goal>prepare-agent</goal>
               </goals>
+              <configuration>
+                <propertyName>jacoco.ut.argLine</propertyName>
+              </configuration>
             </execution>
             <execution>
               <id>prepare-agent-integration</id>
               <goals>
                 <goal>prepare-agent-integration</goal>
               </goals>
+              <configuration>
+                <propertyName>jacoco.it.argLine</propertyName>
+              </configuration>
             </execution>
             <execution>
-              <id>default-report</id>
+              <id>report</id>
               <goals>
                 <goal>report</goal>
               </goals>
+              <configuration>
+              </configuration>
+            </execution>
+            <execution>
+              <id>report-integration</id>
+              <goals>
+                <goal>report-integration</goal>
+              </goals>
+              <configuration>
+              </configuration>
             </execution>
           </executions>
         </plugin>
         <plugin>
           <groupId>org.sonarsource.scanner.maven</groupId>
           <artifactId>sonar-maven-plugin</artifactId>
-          <version>3.4.0.905</version>
+          <version>${sonar.version}</version>
         </plugin>
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
