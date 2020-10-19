@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2016-2018 Nuxeo (http://nuxeo.com/) and others.
+ * (C) Copyright 2016-2020 Nuxeo (http://nuxeo.com/) and others.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -31,6 +31,8 @@ import static org.junit.Assert.fail;
 import static org.junit.Assume.assumeTrue;
 import static org.nuxeo.client.ITBase.LOGIN;
 import static org.nuxeo.client.Operations.BLOB_ATTACH_ON_DOCUMENT;
+import static org.nuxeo.client.Operations.DOCUMENT_CHECK_IN;
+import static org.nuxeo.client.Operations.DOCUMENT_GET_LAST_VERSION;
 import static org.nuxeo.client.Operations.ES_WAIT_FOR_INDEXING;
 import static org.nuxeo.client.objects.Document.DEFAULT_FILE_CONTENT;
 
@@ -56,6 +58,7 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import org.apache.commons.lang3.StringUtils;
 import org.junit.Test;
 import org.nuxeo.client.cache.ResultCacheInMemory;
 import org.nuxeo.client.objects.DataSet;
@@ -65,6 +68,7 @@ import org.nuxeo.client.objects.Field;
 import org.nuxeo.client.objects.RecordSet;
 import org.nuxeo.client.objects.Repository;
 import org.nuxeo.client.objects.acl.ACE;
+import org.nuxeo.client.objects.acl.ACL;
 import org.nuxeo.client.objects.acl.ACP;
 import org.nuxeo.client.objects.audit.Audit;
 import org.nuxeo.client.objects.audit.LogEntry;
@@ -173,6 +177,24 @@ public class ITRepository extends AbstractITBase {
         assertEquals("default", document.getRepositoryName());
         assertEquals("project", document.getState());
         assertEquals("Note 0", document.getTitle());
+    }
+
+    @Test
+    public void itCanQueryWithParameters() {
+        Documents documents = nuxeoClient.repository()
+                                         .query("SELECT * From Note WHERE ecm:isVersion = 0 AND dc:title = ? AND dc:source = ?",
+                                                 null, null, null, null, null, "Note 0", "Source 0");
+        assertEquals(1, documents.getDocuments().size());
+        Document document = documents.getDocuments().get(0);
+        assertEquals("Note", document.getType());
+        assertEquals("default", document.getRepositoryName());
+        assertEquals("project", document.getState());
+        assertEquals("Note 0", document.getTitle());
+
+        documents = nuxeoClient.repository()
+                               .query("SELECT * From Note WHERE ecm:isVersion = 0 AND dc:title = ? AND dc:source = ?",
+                                       null, null, null, null, null, "Note 0", "Source 1");
+        assertEquals(0, documents.getDocuments().size());
     }
 
     @Test
@@ -379,6 +401,40 @@ public class ITRepository extends AbstractITBase {
     }
 
     @Test
+    public void itCanManagePermissionsOnCustomACL() {
+        // Create a user
+        User user = nuxeoClient.userManager().createUser(ITBase.createUser());
+        // Add a first permission on a new ACL "testPerm"
+        Document folder = nuxeoClient.repository().fetchDocumentByPath("/folder_2");
+        // Settings
+        ACE ace = new ACE();
+        ace.setUsername(user.getUserName());
+        ace.setPermission("Write");
+        ace.setCreator("Administrator");
+        ace.setBlockInheritance(false);
+        folder.addPermission(ace, "testPerm");
+        // Check created permission
+        folder = nuxeoClient.repository().fetchDocumentByPath("/folder_2");
+        ACP acp = folder.fetchPermissions();
+        assertTrue(acp.getAcls().size() != 0);
+        assertEquals(2, acp.getAcls().size());
+        ACL testPermACL = acp.getAcls()
+                             .stream()
+                             .filter(a -> StringUtils.equals("testPerm", a.getName()))
+                             .findFirst()
+                             .orElseThrow(() -> new AssertionError("ACL with name: testPerm should exist"));
+        assertEquals(testPermACL.getAces().size(), 1);
+        String aceId = testPermACL.getAces().get(0).getId();
+        // ** DELETION **/
+        folder.removePermission(aceId, user.getUserName(), "testPerm");
+        // Final Check
+        folder = nuxeoClient.repository().fetchDocumentByPath("/folder_2");
+        acp = folder.fetchPermissions();
+        assertEquals(1, acp.getAcls().size());
+        assertEquals("inherited", acp.getAcls().get(0).getName());
+    }
+
+    @Test
     public void itCanFetchAudit() {
         Document root = nuxeoClient.repository().fetchDocumentRoot();
         Audit audit = root.fetchAudit();
@@ -397,6 +453,7 @@ public class ITRepository extends AbstractITBase {
                                                  .execute();
                 assertTrue(documents.getUuids().size() != 0);
             } catch (Exception e) {
+                // ignore
             }
         });
         Thread t2 = new Thread(() -> {
@@ -406,6 +463,7 @@ public class ITRepository extends AbstractITBase {
                                                  .execute();
                 assertTrue(documents.getUuids().size() != 0);
             } catch (Exception e) {
+                // ignore
             }
         });
         t.start();
@@ -431,7 +489,7 @@ public class ITRepository extends AbstractITBase {
                                        .repository()
                                        .fetchDocumentByPath("/folder_2");
         assertNotNull(document);
-        assertEquals(1, ((List) document.getContextParameters().get("acls")).size());
+        assertEquals(1, document.<List<Object>> getContextParameter("acls").size());
         assertEquals(1, document.<Documents> getContextParameter("breadcrumb").size());
     }
 
@@ -669,7 +727,7 @@ public class ITRepository extends AbstractITBase {
         document = nuxeoClient.repository().createDocumentByPath("/folder_1", document);
         assertNotNull(document);
         assertEquals("DataSet", document.getType());
-        List list = document.getPropertyValue("ds:fields");
+        List<Object> list = document.getPropertyValue("ds:fields");
         assertFalse(list.isEmpty());
         assertEquals(2, list.size());
         assertEquals("document", document.getEntityType());
@@ -1018,6 +1076,24 @@ public class ITRepository extends AbstractITBase {
         comment.setCreationDate(date);
         comment.setModificationDate(date);
         return comment;
+    }
+
+    @Test
+    public void itCanCheckIfDocumentIsVersion() {
+        Document file = nuxeoClient.repository().fetchDocumentByPath("/folder_2/file");
+        assertNotNull(file);
+        assertFalse(file.isVersion());
+        assertTrue(file.isCheckedOut());
+
+        file = nuxeoClient.operation(DOCUMENT_CHECK_IN).input(file).context("version", "major").execute();
+        assertNotNull(file);
+        assertFalse(file.isVersion());
+        assertFalse(file.isCheckedOut());
+
+        Document version = nuxeoClient.operation(DOCUMENT_GET_LAST_VERSION).input(file).execute();
+        assertNotNull(version);
+        assertTrue(version.isVersion());
+        assertFalse(version.isCheckedOut());
     }
 
 }

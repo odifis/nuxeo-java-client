@@ -1,5 +1,5 @@
 /*
- * (C) Copyright 2016-2018 Nuxeo (http://nuxeo.com/) and others.
+ * (C) Copyright 2016-2020 Nuxeo (http://nuxeo.com/) and others.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -116,6 +116,28 @@ public class Document extends RepositoryEntity<RepositoryAPI, Document> {
 
     @JsonProperty("isTrashed")
     protected Boolean isTrashed;
+
+    /** @since 3.6 */
+    @JsonProperty("isRecord")
+    protected boolean isRecord;
+
+    /** @since 3.6 */
+    protected String retainUntil;
+
+    /** @since 3.6 */
+    @JsonProperty("hasLegalHold")
+    protected boolean hasLegalHold;
+
+    /** @since 3.6 */
+    @JsonProperty("isUnderRetentionOrLegalHold")
+    protected boolean isUnderRetentionOrLegalHold;
+
+    /** @since 3.6 */
+    @JsonProperty("isVersion")
+    protected boolean isVersion;
+
+    /** @since 3.6 */
+    protected String versionableId;
 
     /**
      * For internal marshalling purpose.
@@ -260,6 +282,90 @@ public class Document extends RepositoryEntity<RepositoryAPI, Document> {
         return name;
     }
 
+    /**
+     * @since 3.6
+     */
+    public boolean isRecord() {
+        return isRecord;
+    }
+
+    /**
+     * @since 3.6
+     */
+    public void setRecord(boolean record) {
+        isRecord = record;
+    }
+
+    /**
+     * @since 3.6
+     */
+    public String getRetainUntil() {
+        return retainUntil;
+    }
+
+    /**
+     * @since 3.6
+     */
+    public void setRetainUntil(String retainUntil) {
+        this.retainUntil = retainUntil;
+    }
+
+    /**
+     * @since 3.6
+     */
+    public boolean hasLegalHold() {
+        return hasLegalHold;
+    }
+
+    /**
+     * @since 3.6
+     */
+    public void setHasLegalHold(boolean hasLegalHold) {
+        this.hasLegalHold = hasLegalHold;
+    }
+
+    /**
+     * @since 3.6
+     */
+    public boolean isUnderRetentionOrLegalHold() {
+        return isUnderRetentionOrLegalHold;
+    }
+
+    /**
+     * @since 3.6
+     */
+    public void setUnderRetentionOrLegalHold(boolean underRetentionOrLegalHold) {
+        isUnderRetentionOrLegalHold = underRetentionOrLegalHold;
+    }
+
+    /**
+     * @since 3.6
+     */
+    public boolean isVersion() {
+        return isVersion;
+    }
+
+    /**
+     * @since 3.6
+     */
+    public void setVersion(boolean version) {
+        isVersion = version;
+    }
+
+    /**
+     * @since 3.6
+     */
+    public String getVersionableId() {
+        return versionableId;
+    }
+
+    /**
+     * @since 3.6
+     */
+    public void setVersionableId(String versionableId) {
+        this.versionableId = versionableId;
+    }
+
     public Map<String, Object> getProperties() {
         return properties;
     }
@@ -291,7 +397,7 @@ public class Document extends RepositoryEntity<RepositoryAPI, Document> {
      * @param segments the remaining segments to resolve on given {@code value}
      * @return the resolved value of given {@code segments}
      */
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     protected Object getPropertyValue(Object value, List<String> segments) {
         // test if we have finished to resolve xpath
         if (segments.isEmpty()) {
@@ -437,8 +543,20 @@ public class Document extends RepositoryEntity<RepositoryAPI, Document> {
      * @param ace the permission.
      */
     public Document addPermission(ACE ace) {
+        return addPermission(ace, ACL.LOCAL_ACL);
+    }
+
+    /**
+     * Add permission on the current document.
+     *
+     * @since 3.7
+     * @param ace the permission.
+     * @param aclName the ACL name where the permission is added.
+     */
+    public Document addPermission(ACE ace, String aclName) {
         Map<String, Object> params = toAutomationParameters(ace);
         params.put("user", ace.getUsername());
+        params.put("acl", aclName);
         return nuxeoClient.operation(Operations.DOCUMENT_ADD_PERMISSION).input(this).parameters(params).execute();
     }
 
@@ -452,7 +570,6 @@ public class Document extends RepositoryEntity<RepositoryAPI, Document> {
         params.put("comment", ace.getComment());
         params.put("notify", ace.isNotify());
         return params;
-
     }
 
     /**
@@ -510,8 +627,20 @@ public class Document extends RepositoryEntity<RepositoryAPI, Document> {
      * @param ace the permission.
      */
     public void addPermission(ACE ace, Callback<Document> callback) {
+        addPermission(ace, ACL.LOCAL_ACL, callback);
+    }
+
+    /**
+     * Add permission on the current document.
+     *
+     * @since 3.7
+     * @param ace the permission.
+     * @param aclName the ACL name where the permission is added.
+     */
+    public void addPermission(ACE ace, String aclName, Callback<Document> callback) {
         Map<String, Object> params = toAutomationParameters(ace);
         params.put("user", ace.getUsername());
+        params.put("acl", aclName);
         nuxeoClient.operation(Operations.DOCUMENT_ADD_PERMISSION).input(this).parameters(params).execute(callback);
     }
 
@@ -665,6 +794,7 @@ public class Document extends RepositoryEntity<RepositoryAPI, Document> {
         return isProxy;
     }
 
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     private void rejectIfDateFound(String key, Object value) {
         if (value instanceof Calendar || value instanceof Date) {
             throw new IllegalArgumentException(String.format(
@@ -754,7 +884,6 @@ public class Document extends RepositoryEntity<RepositoryAPI, Document> {
      *
      * @since 3.2
      */
-    @SuppressWarnings("unchecked")
     public static class Adapter extends AbstractAdapter<Adapter> {
 
         protected Adapter(NuxeoClient nuxeoClient, String repositoryName, String documentId, String adapter) {
@@ -847,9 +976,10 @@ public class Document extends RepositoryEntity<RepositoryAPI, Document> {
          * Sends a POST request directly on adapter url.
          *
          * @param object the object to send as body
+         * @implNote since 3.8, this API takes an {@link Object} instead of {@link O} to allow arbitrary POST requests
          * @since 3.2
          */
-        public <O> O post(O object) {
+        public <O> O post(Object object) {
             return post("", object);
         }
 
@@ -858,9 +988,10 @@ public class Document extends RepositoryEntity<RepositoryAPI, Document> {
          *
          * @param pathSuffix the path to append to the end of hit adapter
          * @param object the object to send as body
+         * @implNote since 3.8, this API takes an {@link Object} instead of {@link O} to allow arbitrary POST requests
          * @since 3.2
          */
-        public <O> O post(String pathSuffix, O object) {
+        public <O> O post(String pathSuffix, Object object) {
             return post(pathSuffix, emptyMap(), object);
         }
 
@@ -869,9 +1000,10 @@ public class Document extends RepositoryEntity<RepositoryAPI, Document> {
          *
          * @param queryParams the query parameters to append to url
          * @param object the object to send as body
+         * @implNote since 3.8, this API takes an {@link Object} instead of {@link O} to allow arbitrary POST requests
          * @since 3.2
          */
-        public <O> O post(Map<String, Serializable> queryParams, O object) {
+        public <O> O post(Map<String, Serializable> queryParams, Object object) {
             return post("", queryParams, object);
         }
 
@@ -881,9 +1013,10 @@ public class Document extends RepositoryEntity<RepositoryAPI, Document> {
          * @param pathSuffix the path to append to the end of hit adapter
          * @param queryParams the query parameters to append to url
          * @param object the object to send as body
+         * @implNote since 3.8, this API takes an {@link Object} instead of {@link O} to allow arbitrary POST requests
          * @since 3.2
          */
-        public <O> O post(String pathSuffix, Map<String, Serializable> queryParams, O object) {
+        public <O> O post(String pathSuffix, Map<String, Serializable> queryParams, Object object) {
             if (repositoryName == null) {
                 return (O) fetchResponse(api.createForAdapter(documentId, adapter, pathSuffix, queryParams, object));
             }
