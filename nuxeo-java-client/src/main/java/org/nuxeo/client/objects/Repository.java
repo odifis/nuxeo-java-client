@@ -19,6 +19,8 @@
  */
 package org.nuxeo.client.objects;
 
+import java.io.Serializable;
+import java.util.Map;
 import java.util.function.Function;
 
 import org.nuxeo.client.NuxeoClient;
@@ -32,7 +34,11 @@ import org.nuxeo.client.objects.workflow.Workflow;
 import org.nuxeo.client.objects.workflow.Workflows;
 
 import okhttp3.ResponseBody;
+import retrofit2.Call;
 import retrofit2.Callback;
+import retrofit2.http.GET;
+import retrofit2.http.Path;
+import retrofit2.http.QueryMap;
 
 /**
  * @since 0.1
@@ -202,6 +208,20 @@ public class Repository extends RepositoryEntity<RepositoryAPI, Repository> {
             String sortBy, String sortOrder, String queryParams, Callback<Documents> callback) {
         fetchResponse(api.queryByProvider(providerName, pageSize, currentPageIndex, maxResults, sortBy, sortOrder,
                 queryParams), callback);
+    }
+
+    public void queryByProvider(String providerName, /*@Query("pageSize") String pageSize,
+                                    @Query("currentPageIndex") String currentPageIndex, @Query("maxResults") String maxResults,
+                                    @Query("sortBy") String sortBy, @Query("sortOrder") String sortOrder,*/
+                                    Map<String, Serializable> queryParams, Callback<Documents> callback) {
+        fetchResponse(api.queryByProvider(providerName, queryParams));
+    }
+
+    public Documents queryByProvider(String providerName, /*@Query("pageSize") String pageSize,
+                                    @Query("currentPageIndex") String currentPageIndex, @Query("maxResults") String maxResults,
+                                    @Query("sortBy") String sortBy, @Query("sortOrder") String sortOrder,*/
+                                     Map<String, Serializable> queryParams) {
+        return fetchResponse(api.queryByProvider(providerName, queryParams));
     }
 
     /* Audit - Sync */

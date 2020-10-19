@@ -113,6 +113,14 @@ public interface RepositoryAPI {
             @Query("sortBy") String sortBy, @Query("sortOrder") String sortOrder,
             @Query("queryParams") String queryParams);
 
+    @GET("search/pp/{providerName}/execute")
+    Call<Documents> queryByProvider(@Path("providerName") String providerName, /*@Query("pageSize") String pageSize,
+                                    @Query("currentPageIndex") String currentPageIndex, @Query("maxResults") String maxResults,
+                                    @Query("sortBy") String sortBy, @Query("sortOrder") String sortOrder,*/
+                                    @QueryMap(encoded = true) Map<String, Serializable> queryParams);
+
+
+
     /* Audit */
 
     @GET("path{documentPath}/@audit")
